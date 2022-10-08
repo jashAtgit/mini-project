@@ -7,18 +7,9 @@
 
 =================================================================================*/
 
-#include <stdio.h>
-#include <unistd.h>
-#include <signal.h>
-#include <stdlib.h>
-#include <sys/types.h>
-#include <sys/socket.h>
-#include <netinet/in.h>
-#include <netinet/ip.h>
-#include <pthread.h>
+#include "bank.h"
 
 #define MAX_LISTEN 5
-#define LINE_BUF 1024
 
 void *process_client(void * arg){
     int sfd = *(int *)arg;
@@ -30,25 +21,73 @@ void *process_client(void * arg){
         exit(1);
     }
     
+    char data[MAX_STR];
+    FILE * fp = fopen("./data/details.txt", "a+");
+
     switch (ch)
     {
     case 1:
         //create account
-        //wait to read details and store in file(use file locking)
+        //wait to read details and store in file(using mutex)
         ;
-        char name[LINE_BUF], uname[LINE_BUF];
-        read(sfd, &name, sizeof(name));
-        read(sfd, &uname, sizeof(uname));
+        
+        pthread_mutex_t mtx = PTHREAD_MUTEX_INITIALIZER;
 
-        printf("name : %s", name);
-        printf("username : %s", uname);
+        if(fp == NULL){
+            perror("open");
+            pthread_exit(NULL);
+        }
+        pthread_mutex_lock(&mtx);
+        /* ================================ start of critical section ================================ */
+        fseek(fp, 0, SEEK_END);
+        fprintf(fp,"%d;;", random_number(100000, 999999+1));    //assign a 6 digit account number to the new account
+
+        int readBytes;
+        while((readBytes = read(sfd, data, MAX_STR)) > 0) {
+            printf("data: %s\n", data);
+            printf("output fprintf %d\n",fprintf(fp, "%s;;",data));
+        }
+
+        // add delimiter here
+        fprintf(fp, "\n");
+
+        /* ================================ end of critical section ==================================*/
+        pthread_mutex_unlock(&mtx);
 
         break;
-    
+    case 2:
+        /* verify login details recvd from client */
+        ;
+        int c=3,ok=0;
+        while(c > 0 && !ok){
+            struct user u, u2; 
+            read(sfd, u.uname, sizeof(u.uname));
+            read(sfd, u.encrypted, sizeof(u.encrypted));
+
+            fseek(fp, 0, SEEK_SET);
+
+            int status;
+            char newline[MAX_STR];
+            while((status = fscanf(fp, "%d;;%[^;;];;%[^;;];;%[^;;];;%[^;;];;%[^;;]",&u2.acc_no, u2.fname, u2.lname, u2.uname, u2.phone, u2.encrypted)) && status == 6){
+                fscanf(fp,"%[^\n]",newline);
+                int found = strcmp(u2.uname, u.uname) == 0;
+                if(found){
+                    break;
+                }
+            }
+            int ok = strcmp(u2.encrypted, u.encrypted) == 0;
+            
+            //sending login status to client
+            write(sfd, &ok, sizeof(ok));
+            c--;
+        }
+
+        break;
+
     default:
         break;
     }
-    //printf("data recvd : %d \n", ch);
+    fclose(fp);
     close(sfd);
 
 }
