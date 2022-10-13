@@ -16,6 +16,14 @@
 #include <crypt.h>
 #include <time.h>
 
+#define MAX_STRING 50
+#define MAX_STR 50
+#define PASS_LEN 14
+
+#define USER_FILE "./data/users.bin"
+#define ACCOUNTS_FILE "./data/accounts.bin"
+
+
 int random_number(int low_num, int hi_num){
     /* generate random numbers between [low_num, hi_num) */
     srand(time(NULL));
@@ -23,19 +31,46 @@ int random_number(int low_num, int hi_num){
     return result;
 }
 
+
+struct account{
+    int accno;
+    int type;               // 0 for normal account , 1 for joint
+    long int bal;
+    int active;             // 1 for active, 0 for inactive
+};
+
+struct user{
+    int cust_id;              
+    int my_accno;
+    char uname[MAX_STR];           //associated account number
+    int age;
+    char sex[MAX_STR];            //"male" or "female"
+    char encrypted[PASS_LEN];
+};
+
 void main(){
-    char encrypted[14], test[14];
-    char salt[] = "ab";
-    strcpy(encrypted, crypt("hello", salt));
-    printf("encrypted : %s\n", encrypted);
+    
+    int ufd = open(USER_FILE,O_RDWR, S_IRWXU);
+    int afd = open(ACCOUNTS_FILE,O_RDWR, S_IRWXU);
 
-    strcpy(test, crypt("hellos", salt));
-    printf("test : %s\n", test);
-    if(strcmp(encrypted, test) == 0){
-        printf("access granted\n");
-    }
-    else{
-        printf("access denied\n");
-    }
 
+    struct user u;
+    struct account a;
+
+    
+    while(read(ufd, &u, sizeof(struct user))){
+        printf("cid : %d\naccno :%d\nuname: %s\nage : %d\nsex : %s\npass : %s\n", u.cust_id, u.my_accno, u.uname, u.age, u.sex, u.encrypted);
+    }
+    printf("\n\n");
+    while(read(afd, &a, sizeof(a))){
+        printf("accno : %d\ntype : %d\nbal : %ld\nactive :%d\n", a.accno, a.type, a.bal, a.active);
+    }   
+    close(ufd);
+    close(afd);
+    
+   
+
+   
+
+   
 }

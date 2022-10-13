@@ -11,24 +11,33 @@
 #include <sys/stat.h>
 #include <time.h>
 #include <crypt.h>
+#include <wait.h>
+#include <strings.h>
+#include <errno.h>
 
 #define MAX_LINE 1024
 #define MAX_STR 50
 #define PASS_LEN 14
 #define SALT "ab"
+#define SKIP "skip write\n"
+#define EXIT "exit\n"
+#define CLR_SCREEN "clr\n"
+
+
+struct account{
+    int accno;
+    int type;               // 0 for normal account , 1 for joint
+    long int bal;
+    int active;             // 1 for active, 0 for inactive
+};
 
 struct user{
-    int acc_no;
-    char fname[MAX_STR];
-    char lname[MAX_STR];
-    char uname[MAX_STR];
-    char phone[MAX_STR];
+    int cust_id;              
+    int my_accno;
+    char uname[MAX_STR];           //associated account number
+    int age;
+    char sex[MAX_STR];            //"male" or "female"
     char encrypted[PASS_LEN];
 };
 
-int random_number(int low_num, int hi_num){
-    /* generate random numbers between [low_num, hi_num) */
-    srand(time(NULL));
-    int result = (rand() % (hi_num - low_num)) + low_num;
-    return result;
-}
+

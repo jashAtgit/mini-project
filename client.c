@@ -1,36 +1,77 @@
-/*===============================================================================
-
- Author: Battula Jashwanth Sai
- Roll: MT2022029
-
- CLIENT
- 
-=================================================================================*/
-
 #include "bank.h"
 
 
-int intro_menu(){
-    system("clear");
-    printf("\t\tCLIENT SIDE BANKING\t\t\n");
-    printf("1. Create New Account\n2. Login\n3. Exit\n\n\n");
+void process_requests(int sock_fd){
+    char readBuf[MAX_LINE], writeBuf[MAX_LINE];
 
-    int ch;
-    char buf[MAX_LINE];
+    int r;
     do{
-        printf("Enter your choice here : ");
-        fgets(buf, MAX_LINE, stdin);
+        bzero(readBuf, sizeof readBuf);
+        bzero(writeBuf, sizeof writeBuf);
 
-        ch = atoi(buf);
-    }while(ch < 1 || ch > 3);
-    
-    printf("your choice is %d \n", ch);
-    return ch;
+        //printf("waiting to read..\n");
+        r = read(sock_fd, readBuf, MAX_LINE);
+        
+        if(strcmp(readBuf , CLR_SCREEN) == 0){
+            system("clear");
+            write(sock_fd, "1", 1); 
+            continue;
+        }
+
+        if(strcmp(readBuf, SKIP) == 0){
+            write(sock_fd, "1", 1);
+            bzero(readBuf, sizeof readBuf);
+            read(sock_fd, readBuf, MAX_LINE);
+            printf("%s\n", readBuf);
+            write(sock_fd, "1", 1);
+            continue;
+        }
+        
+        if(strcmp(readBuf, EXIT) == 0){
+            write(sock_fd, "1", 1);
+            exit(1);
+        }
+
+        printf("%s\n", readBuf);
+
+        fgets(writeBuf, sizeof writeBuf, stdin);
+        if (strlen(writeBuf) > 0 && writeBuf[strlen(writeBuf) - 1] == '\n')
+            writeBuf[strlen(writeBuf) - 1] = '\0';
+        write(sock_fd, writeBuf, strlen(writeBuf));
+        
+    }while(r > 0);
+
 }
 
-//sock_fd can be made global
-void logged_in(){
 
+void log_in(int sock_fd){
+    char uname[MAX_STR];
+    char pass[PASS_LEN];
+
+    printf("Enter Username: ");
+    fgets(uname, sizeof(uname), stdin);
+
+    strcpy(pass,crypt(getpass("Password: "), SALT));
+
+    uname[strcspn(uname, "\n")] = '\0';
+    pass[strcspn(pass,"\n")] = '\0';
+
+    printf("user : %s pass %s \n", uname, pass);
+
+    write(sock_fd, uname, sizeof(uname));
+    write(sock_fd, pass, sizeof(pass));
+    
+    int isAdmin;
+    read(sock_fd, &isAdmin, sizeof(isAdmin));
+    printf("isAdmin %d\n", isAdmin);
+    if(isAdmin){
+        printf("Logged in as admin...\n");
+    }
+    else{
+        //read and check if user
+        printf("Logged in as user...\n");
+    }
+    
 }
 
 
@@ -54,86 +95,9 @@ void main(){
         exit(1);
     }
 
-    int ch = intro_menu();
+    log_in(sock_fd);
+    process_requests(sock_fd);
 
-    write(sock_fd, &ch, sizeof(ch));
-    switch (ch)
-    {
-    case 1:
-        /* create account */
-        //input details and send to server
-        ;
-        struct user newu;
-        system("clear");
-        printf("enter your first name: ");
-        fgets(newu.fname, MAX_STR, stdin);
-        
-        printf("enter your last name: ");
-        fgets(newu.lname, MAX_STR, stdin);
-        
-        printf("choose your username(no spaces): ");        //check for spaces and prompt retry
-        fgets(newu.uname, MAX_STR, stdin);
-
-        printf("enter your phone number: ");
-        fgets(newu.phone, MAX_STR, stdin);
-
-        strcpy(newu.encrypted,crypt(getpass("create a password:"), SALT));
-        printf("encrypted : %s\n", newu.encrypted);
-        
-        newu.fname[strcspn(newu.fname, "\n")] =  '\0';
-        newu.lname[strcspn(newu.lname, "\n")] =  '\0';
-        newu.uname[strcspn(newu.uname, "\n")] =  '\0';
-        newu.phone[strcspn(newu.phone, "\n")] =  '\0';
-        newu.encrypted[strcspn(newu.encrypted, "\n")] = '\0';
-
-        write(sock_fd, newu.fname, sizeof(newu.fname));
-        write(sock_fd, newu.lname, sizeof(newu.lname));
-        write(sock_fd, newu.uname, sizeof(newu.uname));
-        write(sock_fd, newu.phone, sizeof(newu.phone));
-        write(sock_fd, newu.encrypted, sizeof(newu.encrypted));
-
-        printf("Account Created Successfully !!!!\n");
-
-        break;
-    
-    case 2:
-        /* get login details from user and send to server to verify */
-        ;
-        int c=3,ok=0;
-        while(c > 0  && !ok){
-            struct user dummy;
-
-            system("clear");
-            printf("\t\t::::::::::::LOGIN::::::::::::\t\t\n\n");
-            
-            printf("Enter Username: ");
-            fgets(dummy.uname, MAX_STR, stdin);
-            
-
-            strcpy(dummy.encrypted,crypt(getpass("Enter Password: "),SALT));
-            
-            dummy.uname[strcspn(dummy.uname, "\n")] =  '\0';
-            dummy.encrypted[strcspn(dummy.encrypted, "\n")] = '\0';
-
-            write(sock_fd, dummy.uname, sizeof(dummy.uname));
-            write(sock_fd, dummy.encrypted, sizeof(dummy.encrypted));
-
-            int ok;
-            read(sock_fd, &ok, sizeof(ok));
-            if(ok){
-                printf("Login success\n");
-                logged_in();
-            }
-            else{
-                printf("Invalid Credentials ! press enter to try again, %d attemps left \n", --c);
-                getc(stdin);
-            }
-        }
-        break;
-
-    default:
-        break;
-    }
     close(sock_fd);
 
 
