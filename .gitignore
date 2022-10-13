@@ -1,6 +1,5 @@
 test.c
-data/users.bin
-data/accounts.bin
+data/
 a.out
 server
 client
