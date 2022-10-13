@@ -33,7 +33,6 @@ int random_number(int low_num, int hi_num){
 }
 
 struct transaction{
-    //int tid;
     int accno;
     long int old_val;
     long int new_val;
