@@ -1,6 +1,10 @@
 test.c
-data/
+data/users.bin
+data/accounts.bin
+data/transaction.bin
+.vscode/
 a.out
 server
 client
 client2
+test
