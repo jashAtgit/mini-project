@@ -23,6 +23,12 @@
 #define EXIT "exit\n"
 #define CLR_SCREEN "clr\n"
 
+struct transaction{
+    int accno;
+    long int old_val;
+    long int new_val;
+    char transaction_time[100];
+};
 
 struct account{
     int accno;

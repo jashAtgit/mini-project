@@ -1,5 +1,5 @@
 #define ADMIN_INTERFACE "Welcome Admin!\n1.Add User\n2.Modify\n3.Delete\n4.Search\nEnter Your Choice: "
-#define ACC_TYPE_PROMPT "Enter type of new account (0 - Normal Account, 1 - Joint Account): "
+#define ACC_TYPE_PROMPT "Type of new account\n0.Regular Account\n1.Joint Account\nChoice: "
 #define NAME_PROMPT "Create your username : "
 #define AGE_PROMPT "Enter your age: "
 #define SEX_PROMPT "Enter Sex (male or female): "

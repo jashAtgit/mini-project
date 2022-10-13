@@ -5,6 +5,7 @@
 #define ADMIN_PASS "abWMpd9uBwR.g"
 #define USER_FILE "./data/users.bin"
 #define ACCOUNTS_FILE "./data/accounts.bin"
+#define TRANSACTIONS_FILE "./data/transactions.bin"
 
 
 
@@ -163,43 +164,6 @@ void add_user(int sfd, int acc_no){
 
 }
 
-/*
-void view_user_details(int sfd, off_t curr_offset){
-    char readBuf[MAX_LINE], writeBuf[MAX_LINE];
-
-    struct user u;
-    struct flock l;
-
-    int fd = open(USER_FILE, O_CREAT | O_RDONLY, S_IRWXU);
-
-    if(fd == -1){
-        perror("file open error(view details)");
-
-    }
-    else{
-
-        l.l_type = F_RDLCK;
-        l.l_whence = SEEK_SET;
-        l.l_start = 0;
-        l.l_len = 0;
-        l.l_pid = getpid();
-
-        fcntl(fd, F_SETLKW, &l);
-
-        lseek(fd, curr_offset - sizeof(struct user), SEEK_SET);
-        read(fd, &u, sizeof(struct user));
-
-        l.l_type = F_UNLCK;
-        fcntl(fd, F_SETLK, &l);
-        
-        close(fd);
-
-        printf("cid : %d\naccno :%d\nuname: %s\nage : %d\nsex : %s\npass : %s\n", u.cust_id, u.my_accno, u.uname, u.age, u.sex, u.encrypted);
-    }
-
-}
-*/
-
 void search_user(int sfd){
     char readBuf[MAX_LINE], writeBuf[MAX_LINE];
 
@@ -276,7 +240,6 @@ void search_user(int sfd){
         active = a.active ? 1 : 0;
     
         if(strcmp(u.uname, curr.uname) == 0 && active){
-            //printf("cid : %d\naccno :%d\nuname: %s\nage : %d\nsex : %s\npass : %s\n", curr.cust_id, curr.my_accno, curr.uname, curr.age, curr.sex, curr.encrypted);
             
             clear_screen(sfd);
 
@@ -545,7 +508,326 @@ void process_admin(int sfd){
 
 }
 
-void process_user(int sfd){
+void change_balance(int sfd,  int accno, int amount){
+    char readBuf[MAX_LINE], writeBuf[MAX_LINE];
+
+    int afd = open(ACCOUNTS_FILE, O_RDONLY, S_IRWXU);
+
+    struct account a;
+    struct flock l;
+    struct transaction tran;
+    time_t tstamp;
+
+    tran.accno = accno;
+
+    long int old_bal, new_bal;
+
+    if(afd == -1){
+        perror("open(change_bal)");
+    }
+    else{
+        l.l_type = F_RDLCK;
+        l.l_whence = SEEK_SET;
+        l.l_start = accno * sizeof(struct account);
+        l.l_len = sizeof(struct account);
+        l.l_pid = getpid();
+
+        fcntl(afd, F_SETLKW, &l);
+        lseek(afd, accno * sizeof(struct account), SEEK_SET);
+
+        read(afd, &a, sizeof(a));
+
+        l.l_type = F_UNLCK;
+        fcntl(afd, F_SETLK, &l);
+        close(afd);
+
+        old_bal = a.bal;
+
+        if(amount > 0){
+            //deposit
+            new_bal = old_bal + amount;
+        }
+        else{
+            //withdraw
+            if(old_bal + amount < 0){
+                //not enuf money
+                //write and return;
+                bzero(writeBuf, sizeof(writeBuf));
+                sprintf(writeBuf, "%s", "Not enough money in the account to process request !!\nexiting...");
+                write_without_read(sfd, writeBuf);
+
+                exit_client(sfd);
+                return;
+            }
+            else{
+                new_bal = old_bal + amount;
+            }
+        }
+        a.bal = new_bal;
+        //take lock and write new bal
+        afd = open(ACCOUNTS_FILE, O_WRONLY, S_IRWXU);
+        
+        l.l_type = F_WRLCK;
+        l.l_whence = SEEK_SET;
+        l.l_start = accno * sizeof(struct account);
+        l.l_len = sizeof(struct account);
+        l.l_pid = getpid();
+
+        fcntl(afd, F_SETLKW, &l);
+        lseek(afd, accno * sizeof(struct account), SEEK_SET);
+
+        tstamp = time(NULL);
+        
+        write(afd, &a, sizeof(a));
+
+        l.l_type = F_UNLCK;
+        fcntl(afd, F_SETLK, &l);
+        close(afd);
+        
+        int tfd = open(TRANSACTIONS_FILE, O_APPEND | O_WRONLY, S_IRWXU);
+
+        if(tfd == -1 && errno == ENOENT){
+            tfd = open(TRANSACTIONS_FILE, O_CREAT | O_APPEND | O_WRONLY, S_IRWXU);
+        }
+        tran.old_val = old_bal;
+        tran.new_val = new_bal;
+
+        strcpy(tran.transaction_time, ctime(&tstamp));
+
+        l.l_type = F_WRLCK;
+        l.l_whence = SEEK_END;
+        l.l_start = 0;
+        l.l_len = sizeof(struct transaction);
+        l.l_pid = getpid();
+
+        fcntl(tfd, F_SETLKW, &l);
+        lseek(tfd, 0, SEEK_END);
+
+        write(tfd, &tran, sizeof(tran));
+
+        l.l_type = F_UNLCK;
+        fcntl(tfd, F_SETLK, &l);
+        close(tfd);
+        
+        bzero(writeBuf, sizeof writeBuf);
+        sprintf(writeBuf, "%s", "Transaction Successfull !!");
+        write_without_read(sfd, writeBuf);
+
+        exit_client(sfd);
+
+    }
+}
+
+void balance_enquiry(int sfd, int accno){
+    char readBuf[MAX_LINE], writeBuf[MAX_LINE];
+
+    int afd = open(ACCOUNTS_FILE, O_RDONLY, S_IRWXU);
+
+    struct account a;
+    struct flock l;
+
+    if(afd == -1){
+        perror("open(change_bal)");
+    }
+    else{
+        l.l_type = F_RDLCK;
+        l.l_whence = SEEK_SET;
+        l.l_start = accno * sizeof(struct account);
+        l.l_len = sizeof(struct account);
+        l.l_pid = getpid();
+
+        fcntl(afd, F_SETLKW, &l);
+        lseek(afd, accno * sizeof(struct account), SEEK_SET);
+
+        read(afd, &a, sizeof(a));
+
+        l.l_type = F_UNLCK;
+        fcntl(afd, F_SETLK, &l);
+        close(afd);
+
+        bzero(writeBuf, sizeof writeBuf);
+        sprintf(writeBuf,"%s%ld%s", "Your Current Balance : ", a.bal, " INR");
+        write_without_read(sfd, writeBuf);
+
+        exit_client(sfd);
+    }
+}
+
+void change_pass(int sfd, int accno){
+    char readBuf[MAX_LINE], writeBuf[MAX_LINE];
+
+    bzero(writeBuf, sizeof writeBuf);
+    sprintf(writeBuf, "%s", "Enter New Password: ");
+    write(sfd, &writeBuf, strlen(writeBuf));
+    bzero(readBuf, sizeof readBuf);
+    read(sfd, &readBuf, sizeof(readBuf));
+
+    struct user prev;
+    struct flock l;
+
+    int ufd = open(USER_FILE, O_RDONLY, S_IRWXU);
+
+    if(ufd == -1){
+        perror("open (change pass)");
+    }
+    else{
+        l.l_type = F_RDLCK;
+        l.l_whence = SEEK_SET;
+        l.l_start = accno * sizeof(struct user);
+        l.l_len = sizeof(struct user);
+        l.l_pid = getpid();
+
+        fcntl(ufd, F_SETLKW, &l);
+
+        lseek(ufd, accno * sizeof(struct user), SEEK_SET);
+        
+        read(ufd, &prev, sizeof(prev));
+
+        l.l_type = F_UNLCK;
+        fcntl(ufd, F_SETLK, &l);
+        close(ufd);
+        
+        char pass[PASS_LEN];
+        strcpy(pass, readBuf);
+
+        bzero(prev.encrypted, sizeof(prev.encrypted));
+        strcpy(prev.encrypted, crypt(pass, SALT));
+
+        ufd = open(USER_FILE, O_WRONLY, S_IRWXU);
+
+        l.l_type = F_WRLCK;
+        l.l_whence = SEEK_SET;
+        l.l_start = accno * sizeof(struct user);
+        l.l_len = sizeof(struct user);
+        l.l_pid = getpid();
+
+        fcntl(ufd, F_SETLKW, &l);
+
+        lseek(ufd, accno * sizeof(struct user), SEEK_SET);
+        
+        write(ufd, &prev, sizeof(prev));
+
+        l.l_type = F_UNLCK;
+        fcntl(ufd, F_SETLK, &l);
+        close(ufd);
+
+        bzero(writeBuf, sizeof writeBuf);
+        sprintf(writeBuf,"%s", "Password Change Successfull !!");
+        write_without_read(sfd, writeBuf);
+
+        exit_client(sfd);
+
+    }
+}
+
+void user_view_details(int sfd, int accno){
+    char readBuf[MAX_LINE], writeBuf[MAX_LINE];
+
+    clear_screen(sfd);
+
+    struct user u;
+    struct transaction tran;
+    struct flock l;
+
+    int tfd,c=1;
+    
+    int ufd = open(USER_FILE, O_RDONLY, S_IRWXU);
+
+    if(ufd == -1){
+        perror("open(user view detatils)");
+        exit(1);
+    }
+    else{
+
+        l.l_type = F_RDLCK;
+        l.l_whence = SEEK_SET;
+        l.l_start = accno * sizeof(struct user);
+        l.l_len = sizeof(struct user);
+        l.l_pid = getpid();
+
+        fcntl(ufd, F_SETLKW, &l);
+
+        lseek(ufd, accno * sizeof(struct user), SEEK_SET);
+        read(ufd, &u, sizeof(u));
+
+        l.l_type = F_UNLCK;
+        fcntl(ufd, F_SETLK, &l);
+        close(ufd);
+
+        //send user details to client
+        bzero(writeBuf, sizeof writeBuf);
+        sprintf(writeBuf,"%s%d", "Customer ID : ", u.cust_id);
+        write_without_read(sfd, writeBuf);
+
+        bzero(writeBuf, sizeof writeBuf);
+        sprintf(writeBuf,"%s%d", "Account Number : ", u.my_accno);
+        write_without_read(sfd, writeBuf);
+
+        bzero(writeBuf, sizeof writeBuf);
+        sprintf(writeBuf,"%s%s", "Username : ", u.uname);
+        write_without_read(sfd, writeBuf);
+
+        bzero(writeBuf, sizeof writeBuf);
+        sprintf(writeBuf,"%s%d", "Age : ", u.age);
+        write_without_read(sfd, writeBuf);
+
+        bzero(writeBuf, sizeof writeBuf);
+        sprintf(writeBuf,"%s%s", "Sex : ", u.sex);
+        write_without_read(sfd, writeBuf);
+
+
+        bzero(writeBuf, sizeof writeBuf);
+        sprintf(writeBuf,"%s", "\n||||| Previous Transactions |||||");
+        write_without_read(sfd, writeBuf);
+
+        tfd = open(TRANSACTIONS_FILE, O_RDONLY, S_IRWXU);
+
+        l.l_type = F_RDLCK;
+        l.l_whence = SEEK_SET;
+        l.l_start = 0;
+        l.l_len = 0;
+        l.l_pid = getpid();
+
+        fcntl(tfd, F_SETLKW, &l);
+
+        lseek(tfd, 0, SEEK_SET);
+        int rb;
+        while(read(tfd, &tran, sizeof(tran))){
+            if(tran.accno == accno){
+                //send transactions details to client
+                bzero(writeBuf, sizeof writeBuf);
+                sprintf(writeBuf,"%s%d", "Transaction No: ", c++);
+                write_without_read(sfd, writeBuf);
+
+                bzero(writeBuf, sizeof writeBuf);
+                sprintf(writeBuf,"%s%ld", "Old Balance : ", tran.old_val);
+                write_without_read(sfd, writeBuf);
+
+                bzero(writeBuf, sizeof writeBuf);
+                sprintf(writeBuf,"%s%ld", "New Balance : ", tran.new_val);
+                write_without_read(sfd, writeBuf);
+
+                bzero(writeBuf, sizeof writeBuf);
+                sprintf(writeBuf,"%s%s", "Timestamp : ", tran.transaction_time);
+                write_without_read(sfd, writeBuf);
+            }
+        }
+        if(c == 1){
+            bzero(writeBuf, sizeof writeBuf);
+            sprintf(writeBuf,"%s", "None so far");
+            write_without_read(sfd, writeBuf);
+        }
+        
+
+        l.l_type = F_UNLCK;
+        fcntl(tfd, F_SETLK, &l);
+        close(tfd);
+
+        exit_client(sfd);
+    }
+}
+
+void process_user(int sfd, int accno){
     char readBuf[MAX_LINE], writeBuf[MAX_LINE];
 
     bzero(readBuf, sizeof readBuf);
@@ -553,7 +835,57 @@ void process_user(int sfd){
     
     clear_screen(sfd);
 
-    
+    int ch, amount;
+
+    bzero(writeBuf, sizeof writeBuf);
+    sprintf(writeBuf, "%s", USER_INTERFACE);
+    write(sfd, &writeBuf, strlen(writeBuf));
+    bzero(readBuf, sizeof readBuf);
+    read(sfd, &readBuf, sizeof(readBuf));
+    ch = atoi(readBuf);
+
+    switch (ch)
+    {
+    case 1:
+        //deposit
+        bzero(writeBuf, sizeof writeBuf);
+        sprintf(writeBuf, "%s", "Enter Deposit Amount : ");
+        write(sfd, &writeBuf, strlen(writeBuf));
+        bzero(readBuf, sizeof readBuf);
+        read(sfd, &readBuf, sizeof(readBuf));
+        amount = atoi(readBuf);
+
+        change_balance(sfd, accno, amount);
+        break;
+
+    case 2:
+        // withdraw
+        bzero(writeBuf, sizeof writeBuf);
+        sprintf(writeBuf, "%s", "Enter Withdraw Amount : ");
+        write(sfd, &writeBuf, strlen(writeBuf));
+        bzero(readBuf, sizeof readBuf);
+        read(sfd, &readBuf, sizeof(readBuf));
+        amount = atoi(readBuf);
+
+        change_balance(sfd, accno, -amount);
+        break;
+
+    case 3:
+        balance_enquiry(sfd, accno);
+        break;
+
+    case 4:
+        change_pass(sfd, accno);
+        break;
+
+    case 5:
+        user_view_details(sfd, accno);
+        break;
+
+    default:
+        break;
+    }
+
 }
 
 void login(int sfd){
@@ -567,16 +899,13 @@ void login(int sfd){
     char uname[MAX_STR];
     char pass[PASS_LEN];
 
-    //printf("bytes read %ld \n", read(sfd, uname, MAX_STR) );
     read(sfd, uname, MAX_STR);
     read(sfd, pass, PASS_LEN);
-
-    printf("user : %s pass %s \n", uname, pass);
 
     isAdmin = ((strcmp(uname, ADMIN_UNAME) == 0 ) && ( strcmp(pass, ADMIN_PASS) == 0 )) ? 1 : 0;
 
     write(sfd, &isAdmin, sizeof(isAdmin));
-    printf("isAdmin %d\n", isAdmin);
+
     if(isAdmin){
         process_admin(sfd);
     }
@@ -601,15 +930,13 @@ void login(int sfd){
             int rb;
             do{
                 rb = read(ufd, &curr, sizeof(curr));
-                printf("read : %s\n", curr.uname);
-                printf("asked : %s\n", uname);
             }while(strcmp(curr.uname, uname) != 0 && rb > 0);
 
             if(strcmp(curr.uname, uname) == 0){
                 //check password
                 int ok = strcmp(curr.encrypted, pass) == 0 ? 1 : 0;
                 if(ok){
-                    process_user(sfd);
+                    process_user(sfd, curr.my_accno);
                 }
                 else{
                     //invalid creds
