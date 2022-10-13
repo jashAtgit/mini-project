@@ -1,2 +1,7 @@
 test.c
 data/users.bin
+data/accounts.bin
+a.out
+server
+client
+client2
