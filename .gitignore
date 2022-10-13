@@ -1,7 +1,7 @@
 test.c
 data/users.bin
 data/accounts.bin
-data/transaction.bin
+data/transactions.bin
 .vscode/
 a.out
 server
