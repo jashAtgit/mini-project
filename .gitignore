@@ -1,0 +1,9 @@
+*.bin
+
+test.c
+server
+client
+client2
+a.out
+test
+.vscode
