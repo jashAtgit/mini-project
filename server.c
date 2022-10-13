@@ -498,16 +498,12 @@ void process_admin(int sfd){
     {
     case 1:
         ;
-        //continue from here
         int type;
 
         write(sfd, ACC_TYPE_PROMPT, strlen(ACC_TYPE_PROMPT));
         bzero(readBuf, sizeof readBuf);
         read(sfd, readBuf, sizeof readBuf);
         type = atoi(readBuf);
-
-
-        
 
         int acc_no = add_account(type, sfd);
         printf("returned acc no %d\n", acc_no);
@@ -549,9 +545,24 @@ void process_admin(int sfd){
 
 }
 
+void process_user(int sfd){
+    char readBuf[MAX_LINE], writeBuf[MAX_LINE];
+
+    bzero(readBuf, sizeof readBuf);
+    bzero(writeBuf, sizeof writeBuf);
+    
+    clear_screen(sfd);
+
+    
+}
+
 void login(int sfd){
 
     int isAdmin;
+    char readBuf[MAX_LINE], writeBuf[MAX_LINE];
+
+    bzero(readBuf, sizeof readBuf);
+    bzero(writeBuf, sizeof writeBuf);
 
     char uname[MAX_STR];
     char pass[PASS_LEN];
@@ -569,8 +580,56 @@ void login(int sfd){
     if(isAdmin){
         process_admin(sfd);
     }
-    else {
-        return;
+    else{
+        int ufd = open(USER_FILE, O_RDONLY, S_IRWXU);
+
+        if(ufd == -1){
+            perror("open(login)");
+        }
+        else{
+            struct user curr;
+            struct flock l;
+
+            l.l_type = F_RDLCK;
+            l.l_whence = SEEK_SET;
+            l.l_start = 0;
+            l.l_len = 0;
+            l.l_pid = getpid();
+
+            fcntl(ufd, F_SETLKW, &l);
+            lseek(ufd, 0, SEEK_SET);
+            int rb;
+            do{
+                rb = read(ufd, &curr, sizeof(curr));
+                printf("read : %s\n", curr.uname);
+                printf("asked : %s\n", uname);
+            }while(strcmp(curr.uname, uname) != 0 && rb > 0);
+
+            if(strcmp(curr.uname, uname) == 0){
+                //check password
+                int ok = strcmp(curr.encrypted, pass) == 0 ? 1 : 0;
+                if(ok){
+                    process_user(sfd);
+                }
+                else{
+                    //invalid creds
+                    bzero(writeBuf, sizeof writeBuf);
+                    sprintf(writeBuf, "%s", "Invalid Credentials !!");
+                    write_without_read(sfd,writeBuf);
+
+                    exit_client(sfd);
+                }
+            }
+            else{
+                //user doesnt exists
+                bzero(writeBuf, sizeof writeBuf);
+                sprintf(writeBuf, "%s", "No user exists with the given username");
+                write_without_read(sfd, writeBuf);
+
+                exit_client(sfd);
+            }
+        }
+        //return;
     }
 }
 
@@ -624,8 +683,6 @@ void main(){
             new_session(new_fd);
             close(new_fd);
         }
-        
-        
     }
     close(sock_fd);
 }

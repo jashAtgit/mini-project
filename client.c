@@ -64,13 +64,6 @@ void log_in(int sock_fd){
     int isAdmin;
     read(sock_fd, &isAdmin, sizeof(isAdmin));
     printf("isAdmin %d\n", isAdmin);
-    if(isAdmin){
-        printf("Logged in as admin...\n");
-    }
-    else{
-        //read and check if user
-        printf("Logged in as user...\n");
-    }
     
 }
 

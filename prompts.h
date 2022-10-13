@@ -11,6 +11,8 @@
 #define MODIFY_OPTIONS "Which field do you want to modify....?\n1.Username\n2.Age\n3.Sex\nEnter your choice: "
 #define PROMPT_MODIFICATION "Enter New Value: "
 
+#define USER_INTERFACE "Greetings Banker !!\n1.Deposit\n2.Withdraw\n3.Balance Enquiry\n4.Password Change\n5.View Self Details\n6.Exit\n\nWhat do you want to do today? "
+
 
 #define SUCCESS_USERADDED "USER ADDED SUCCESSFULLY\n"
 
