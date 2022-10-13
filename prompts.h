@@ -13,7 +13,4 @@
 
 #define USER_INTERFACE "Greetings Banker !!\n1.Deposit\n2.Withdraw\n3.Balance Enquiry\n4.Password Change\n5.View Self Details\n6.Exit\n\nWhat do you want to do today? "
 
-
 #define SUCCESS_USERADDED "USER ADDED SUCCESSFULLY\n"
-
-

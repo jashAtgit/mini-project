@@ -1,6 +1,5 @@
 #include "bank.h"
 
-
 void process_requests(int sock_fd){
     char readBuf[MAX_LINE], writeBuf[MAX_LINE];
 
@@ -9,7 +8,6 @@ void process_requests(int sock_fd){
         bzero(readBuf, sizeof readBuf);
         bzero(writeBuf, sizeof writeBuf);
 
-        //printf("waiting to read..\n");
         r = read(sock_fd, readBuf, MAX_LINE);
         
         if(strcmp(readBuf , CLR_SCREEN) == 0){
@@ -43,8 +41,9 @@ void process_requests(int sock_fd){
 
 }
 
-
 void log_in(int sock_fd){
+
+    system("clear");
     char uname[MAX_STR];
     char pass[PASS_LEN];
 
@@ -56,18 +55,13 @@ void log_in(int sock_fd){
     uname[strcspn(uname, "\n")] = '\0';
     pass[strcspn(pass,"\n")] = '\0';
 
-    printf("user : %s pass %s \n", uname, pass);
-
     write(sock_fd, uname, sizeof(uname));
     write(sock_fd, pass, sizeof(pass));
     
     int isAdmin;
     read(sock_fd, &isAdmin, sizeof(isAdmin));
-    printf("isAdmin %d\n", isAdmin);
     
 }
-
-
 
 void main(){
     int sock_fd;
@@ -92,6 +86,4 @@ void main(){
     process_requests(sock_fd);
 
     close(sock_fd);
-
-
 }

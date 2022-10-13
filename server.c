@@ -6,9 +6,6 @@
 #define USER_FILE "./data/users.bin"
 #define ACCOUNTS_FILE "./data/accounts.bin"
 #define TRANSACTIONS_FILE "./data/transactions.bin"
-
-
-
 #define MAX_LISTEN 5
 
 void clear_screen(int sfd){
@@ -35,7 +32,6 @@ void write_without_read(int sfd, char *msg){
     read(sfd, readBuf, sizeof readBuf); // done ack
 }
 
-
 int add_account(int type, int sfd){
     char readBuf[MAX_LINE], writeBuf[MAX_LINE];
 
@@ -43,7 +39,6 @@ int add_account(int type, int sfd){
     acc.type = type;
     acc.active = 1;
     acc.bal = 0;
-    //acc.accno = 0;
 
     struct flock l;
 
@@ -76,7 +71,6 @@ int add_account(int type, int sfd){
         fcntl(fd, F_SETLK, &l);
         close(fd);
 
-        //printf("prev acc no %d\n", prev.accno);
         fd = open(ACCOUNTS_FILE, O_WRONLY, S_IRWXU);
         acc.accno = prev.accno + 1;
     }
@@ -116,12 +110,10 @@ void add_user(int sfd, int acc_no){
     read(sfd, readBuf, sizeof readBuf);
     readBuf[strcspn(readBuf, "\n")] = '\0';
     strcpy(u.encrypted,crypt(readBuf, SALT));
-    //sprintf(u.encrypted, "%s", readBuf);
     
     int fd = open(USER_FILE, O_RDONLY, S_IRWXU);
 
     if(fd == -1 && errno == ENOENT){
-        printf("first user\n");
         fd = open(USER_FILE, O_CREAT | O_WRONLY, S_IRWXU);
         u.cust_id = 0;
     }
@@ -203,8 +195,6 @@ void search_user(int sfd){
         int rb;
         do{
             rb = read(fd, &curr, sizeof(struct user));
-            printf("asked : %s\n", u.uname);
-            printf("read : %s\n", curr.uname);
         }while(strcmp(u.uname, curr.uname) != 0 && rb > 0);
 
         off_t curr_offset = lseek(fd, 0, SEEK_CUR);
@@ -218,7 +208,6 @@ void search_user(int sfd){
 
         //check if user's account is deleted 
         int afd = open(ACCOUNTS_FILE, O_RDONLY, S_IRWXU);
-        printf("curr account number %d\n", curr.my_accno);
 
         l.l_type = F_RDLCK;
         l.l_whence = SEEK_SET;
@@ -236,7 +225,6 @@ void search_user(int sfd){
         fcntl(afd, F_SETLK, &l);
         close(afd);
 
-        printf("active val %d\n", a.active);
         active = a.active ? 1 : 0;
     
         if(strcmp(u.uname, curr.uname) == 0 && active){
@@ -292,7 +280,6 @@ void delete_account(int sfd){
 
     struct account a;
     a.accno = atoi(readBuf);
-    printf("delete this : %d\n", a.accno);
 
     struct flock l;
 
@@ -356,8 +343,6 @@ void modify_user(int sfd){
     read(sfd, readBuf, sizeof readBuf);
     accno = atoi(readBuf);
 
-    printf("account number to modify : %d\n", accno);
-
     bzero(readBuf, sizeof readBuf);
     write(sfd, MODIFY_OPTIONS, strlen(MODIFY_OPTIONS));
     read(sfd, readBuf, sizeof readBuf);
@@ -366,10 +351,8 @@ void modify_user(int sfd){
     bzero(readBuf, sizeof readBuf);
     write(sfd, PROMPT_MODIFICATION, strlen(PROMPT_MODIFICATION));
     read(sfd, readBuf, sizeof readBuf);
-    printf("read buf : %s\n", readBuf);
     char new_val[MAX_STR];
     strcpy(new_val, readBuf);
-    printf("new value : %s\n", new_val);
 
     int ufd = open(USER_FILE, O_RDONLY, S_IRWXU);
 
@@ -398,17 +381,14 @@ void modify_user(int sfd){
         case 1:
             bzero(prev.uname, sizeof(prev.uname));
             strcpy(prev.uname, new_val);
-            printf("uname : %s\n", prev.uname);
             break;
         case 2:
             prev.age = atoi(new_val);
-            printf("age : %d\n", prev.age);
             break;
 
         case 3:
             bzero(prev.sex, sizeof(prev.sex));
             strcpy(prev.sex, new_val);
-            printf("sex : %s\n", prev.sex);
             break;
 
         default:
@@ -463,13 +443,14 @@ void process_admin(int sfd){
         ;
         int type;
 
+        clear_screen(sfd);
+        
         write(sfd, ACC_TYPE_PROMPT, strlen(ACC_TYPE_PROMPT));
         bzero(readBuf, sizeof readBuf);
         read(sfd, readBuf, sizeof readBuf);
         type = atoi(readBuf);
 
         int acc_no = add_account(type, sfd);
-        printf("returned acc no %d\n", acc_no);
 
         if(type == 0){
             // normal account
@@ -956,7 +937,6 @@ void login(int sfd){
                 exit_client(sfd);
             }
         }
-        //return;
     }
 }
 
@@ -966,7 +946,12 @@ void new_session(int sfd){
 
 void main(){
 
-    //setbuf(stdout, NULL);   //uncomment to set stdout to unbuffered
+    struct stat st = {0};
+
+    if(stat("./data", &st) == -1){
+        printf("directory not found, creating\n");
+        mkdir("./data", 0700);
+    }
 
     int sock_fd;
     
