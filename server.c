@@ -949,7 +949,7 @@ void main(){
     struct stat st = {0};
 
     if(stat("./data", &st) == -1){
-        printf("directory not found, creating\n");
+        printf("creating directory.....\n");
         mkdir("./data", 0700);
     }
 
