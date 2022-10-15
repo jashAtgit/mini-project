@@ -26,6 +26,12 @@ and client as
 ./client
 ```
 
+### Admin Credentials 
+
+username: admin
+
+password: 1234
+
 ### System Programming Concepts used
 
 Process Management, File Management, File Locking, Inter Process 
